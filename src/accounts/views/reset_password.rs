@@ -1,6 +1,7 @@
 use jelly::prelude::*;
 use jelly::accounts::User;
 use jelly::actix_web::{HttpRequest, web::{Path, Form}};
+use jelly::djangohashers::{make_password};
 use jelly::Result;
 
 use crate::accounts::Account;
@@ -95,7 +96,8 @@ pub async fn reset(
         }
 
         let pool = request.db_pool()?;
-        Account::update_password_and_last_login(account.id, &form.password, pool).await?;
+        let password = make_password(&form.password);
+        Account::update_password_and_last_login(account.id, &password, pool).await?;
 
         request.queue(SendPasswordWasResetEmail {
             to: account.email.clone()
