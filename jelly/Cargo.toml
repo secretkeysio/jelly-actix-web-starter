@@ -12,12 +12,11 @@ opt-level = 3
 [dependencies]
 actix-files = { version = "0.4", optional = true }
 actix-service = "1.0.5"
-actix-session = "0.4.0"
-actix-web = "3"
+actix-session = "0.5.0-beta.1"
+actix-web = "4.0.0-beta.6"
 actix-rt = "1"
 anyhow = "1.0"
 async-trait = "0.1.24"
-background-jobs = "0.8.0"
 chrono = { version = "0.4", features = ["serde"] }
 constant_time_eq = "0.1.5"
 djangohashers = { version = "1.3.2", default-features = false, features = ["with_pbkdf2"] }
@@ -34,7 +33,8 @@ rand = "*"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.9"
-sqlx = { version = "0.4.2", default-features = false, features = ["runtime-actix-rustls", "macros", "postgres", "chrono", "json"] }
+sqlx = { version = "0.5.2", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "chrono", "json"] }
+sqlxmq = { git = "https://github.com/secretkeysio/sqlxmq", default-features = false, features = ["runtime-tokio-rustls"] }
 tera = "1.5"
 validator = "0.11"
 zxcvbn = "2.0.1"

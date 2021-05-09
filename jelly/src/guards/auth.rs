@@ -84,7 +84,7 @@ where
             Err(e) => Either::Right(ok(ServiceResponse::new(
                 request,
                 HttpResponse::InternalServerError()
-                    .body(&render(e))
+                    .body(&render(&e.into()))
                     .into_body()
             )))
         }

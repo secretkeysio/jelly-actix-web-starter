@@ -3,7 +3,7 @@
 //! error formats into the one we use for responding.
 
 use std::{error, fmt};
-use actix_web::{HttpResponse, ResponseError};
+use actix_web::{HttpResponse, ResponseError, http::StatusCode};
 
 /// This enum represents the largest classes of errors we can expect to
 /// encounter in the lifespan of our application. Feel free to add to this
@@ -11,8 +11,8 @@ use actix_web::{HttpResponse, ResponseError};
 /// might not fit here by default.
 #[derive(Debug)]
 pub enum Error {
-    ActixWeb(actix_web::error::Error),
     Anyhow(anyhow::Error),
+    MinReq(minreq::Error),
     Database(sqlx::Error),
     Generic(String),
     Template(tera::Error),
@@ -32,12 +32,12 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Error::ActixWeb(e) => Some(e),
             Error::Anyhow(e) => Some(e.root_cause()),
             Error::Database(e) => Some(e),
             Error::Template(e) => Some(e),
             Error::Json(e) => Some(e),
             Error::Radix(e) => Some(e),
+            Error::MinReq(e) => Some(e),
             
             Error::Generic(_) | Error::InvalidPassword |
             Error::InvalidAccountToken |
@@ -46,49 +46,53 @@ impl error::Error for Error {
     }
 }
 
-impl From<actix_web::error::Error> for Error {
+
+/// This type exists because, for whatever reason, ResponseError can't be Send+Sync.
+///
+/// If you ask me, it should be allowed to be: it's a glorified Debug/Display trait.
+///
+/// But it's not, so here we are.
+///
+/// The various internal methods of this project will take an `Error` and translate it
+/// to an `ErrorResponse`, which is the default return type for render methods.
+#[derive(Debug)]
+pub enum ErrorResponse {
+    ActixWeb(actix_web::error::Error),
+    Other(Error)
+}
+
+impl fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl error::Error for ErrorResponse {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            ErrorResponse::ActixWeb(e) => Some(e),
+            ErrorResponse::Other(e) => e.source()
+        }
+    }
+}
+
+impl From<Error> for ErrorResponse {
+    fn from(e: Error) -> Self {
+        ErrorResponse::Other(e)
+    }
+}
+
+impl From<actix_web::error::Error> for ErrorResponse {
     fn from(e: actix_web::error::Error) -> Self {
-        Error::ActixWeb(e)
+        ErrorResponse::ActixWeb(e)
     }
 }
 
-impl From<serde_json::error::Error> for Error {
-    fn from(e: serde_json::error::Error) -> Self {
-        Error::Json(e)
+impl ResponseError for ErrorResponse {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::INTERNAL_SERVER_ERROR
     }
-}
 
-impl From<sqlx::Error> for Error {
-    fn from(e: sqlx::Error) -> Self {
-        Error::Database(e)
-    }
-}
-
-impl From<anyhow::Error> for Error {
-    fn from(e: anyhow::Error) -> Self {
-        Error::Anyhow(e)
-    }
-}
-
-impl From<tera::Error> for Error {
-    fn from(e: tera::Error) -> Self {
-        Error::Template(e)
-    }
-}
-
-impl From<radix::RadixErr> for Error {
-    fn from(e: radix::RadixErr) -> Self {
-        Error::Radix(e)
-    }
-}
-
-impl From<djangohashers::HasherError> for Error {
-    fn from(e: djangohashers::HasherError) -> Self {
-        Error::PasswordHasher(e)
-    }
-}
-
-impl ResponseError for Error {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::InternalServerError()
             .content_type("text/html; charset=utf-8")
@@ -96,9 +100,33 @@ impl ResponseError for Error {
     }
 }
 
+macro_rules! wrap_error_type {
+    ($variant:path, $wrap:path) => (
+        impl From<$wrap> for Error {
+            fn from(e: $wrap) -> Self {
+                $variant(e)
+            }
+        }
+
+        impl From<$wrap> for ErrorResponse {
+            fn from(e: $wrap) -> Self {
+                ErrorResponse::Other($variant(e))
+            }
+        }
+    )
+}
+
+wrap_error_type!(Error::MinReq, minreq::Error);
+wrap_error_type!(Error::Json, serde_json::error::Error);
+wrap_error_type!(Error::Database, sqlx::Error);
+wrap_error_type!(Error::Anyhow, anyhow::Error);
+wrap_error_type!(Error::Template, tera::Error);
+wrap_error_type!(Error::Radix, radix::RadixErr);
+wrap_error_type!(Error::PasswordHasher, djangohashers::HasherError);
+
 /// A generic method for rendering an error to present to the browser.
 /// This should only be called in non-production settings.
-pub(crate) fn render<E: std::fmt::Debug>(e: E) -> String {
+pub(crate) fn render(e: &ErrorResponse) -> String {
     format!(r#"<!DOCTYPE html>
         <html>
         <head>
@@ -127,7 +155,7 @@ pub(crate) fn render<E: std::fmt::Debug>(e: E) -> String {
         </head>
         <body>
             <h1>Error</h1>
-            <code>{:#?}<code>
+            <code>{}<code>
         </body>
         </html>
     "#, e)

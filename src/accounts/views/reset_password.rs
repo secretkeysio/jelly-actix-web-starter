@@ -5,7 +5,7 @@ use jelly::Result;
 
 use crate::accounts::Account;
 use crate::accounts::forms::{EmailForm, ChangePasswordForm};
-use crate::accounts::jobs::{SendPasswordWasResetEmail, SendResetPasswordEmail};
+use crate::accounts::jobs::{send_password_was_reset_email, send_reset_password_email};
 use crate::accounts::views::utils::validate_token;
 
 /// Just renders a standard "Enter Your Email" password reset page.
@@ -35,9 +35,11 @@ pub async fn request_reset(
         });
     }
 
-    request.queue(SendResetPasswordEmail {
-        to: form.email.value
-    })?;
+    let db = request.db_pool()?;
+    send_reset_password_email.builder()
+        .set_json(&form.email.value)?
+        .spawn(db)
+        .await?;
 
     request.render(200, "accounts/reset_password/requested.html", {
         let mut context = Context::new();
@@ -97,9 +99,10 @@ pub async fn reset(
         let pool = request.db_pool()?;
         Account::update_password_and_last_login(account.id, &form.password, pool).await?;
 
-        request.queue(SendPasswordWasResetEmail {
-            to: account.email.clone()
-        })?;
+        send_password_was_reset_email.builder()
+            .set_json(&account.email)?
+            .spawn(pool)
+            .await?;
 
         request.set_user(User {
             id: account.id,

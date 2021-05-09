@@ -1,16 +1,14 @@
 //! Implements some framework-level pieces, primarily useful in debugging scenarios.
 
-use actix_web::Result;
 use actix_web::{HttpRequest, HttpResponse};
 use actix_web::web::ServiceConfig;
 use tera::Context;
 
-use crate::error::Error;
 use crate::request::Render;
 
 /// Shorthand method for throwing a big ol' 404.
 #[inline(always)]
-pub async fn not_found(request: HttpRequest) -> Result<HttpResponse, Error> {
+pub async fn not_found(request: HttpRequest) -> crate::Result<HttpResponse> {
     request.render(404, "404.html", Context::new())
 }
 

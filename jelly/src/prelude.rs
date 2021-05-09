@@ -5,7 +5,7 @@
 pub use super::{
     actix_web::{HttpRequest, HttpResponse},
 
-    error::Error,
+    error::{Error, ErrorResponse},
 
     // A trait used for calling validate() on form field types. Your form(s) can also implement
     // this, so it's exported here for ease of use.
@@ -15,7 +15,7 @@ pub use super::{
     //i18n::{I18nString},
 
     // Enables various helpers for actix_web's `HttpRequest` type.
-    request::{Authentication, DatabasePool, FlashMessages, JobQueue, Render},
+    request::{Authentication, DatabasePool, FlashMessages, Render},
 
     tera::Context
 };

@@ -9,7 +9,9 @@ use std::collections::HashMap;
 use std::env::var;
 
 use chrono::{Datelike, Utc};
-use serde::{Serialize};
+use serde::Serialize;
+
+use crate::error::Error;
 
 /// Represents information that Postmark can use to send emails. This by 
 /// default relies on templates existing on the Postmark side - you'll send 
@@ -43,8 +45,8 @@ impl<'a> Email<'a> {
         model: HashMap<&'a str, String>
     ) -> Self {
         Email {
-            alias: alias,
-            model: model,
+            alias,
+            model,
             to: to.join(","),
             from: var("POSTMARK_DEFAULT_FROM")
                 .expect("POSTMARK_DEFAULT_FROM not set!")
@@ -53,7 +55,7 @@ impl<'a> Email<'a> {
 
     /// Send the email. Relies on you ensuring that `POSTMARK_API_KEY` 
     /// is set in your `.env`.
-    pub fn send(mut self) -> Result<(), anyhow::Error> {
+    pub fn send(mut self) -> Result<(), Error> {
         let now = Utc::now();
         let year = now.year();
         self.model.insert("year", year.to_string());

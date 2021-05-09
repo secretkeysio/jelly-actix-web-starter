@@ -2,7 +2,6 @@ use actix_web::HttpRequest;
 use actix_session::UserSession;
 
 use crate::templates::FlashMessage;
-use crate::error::Error;
 
 /// `FlashMessages` implements a one-time-message (hence "Flash") that is useful
 /// for old-school HTML flows that need to display messages in a standardized way
@@ -12,15 +11,15 @@ use crate::error::Error;
 /// TODO: Look at whether this can be done with just &str rather than String.
 pub trait FlashMessages {
     /// Adds a flash message to the stack.
-    fn flash(&self, title: &str, message: &str) -> Result<(), Error>;
+    fn flash(&self, title: &str, message: &str) -> crate::Result<()>;
 
     /// Internally used; loads flash messages for template use and removes the existing
     /// stack.
-    fn get_flash_messages(&self) -> Result<Vec<FlashMessage>, Error>;
+    fn get_flash_messages(&self) -> crate::Result<Vec<FlashMessage>>;
 }
 
 impl FlashMessages for HttpRequest {
-    fn flash(&self, title: &str, message: &str) -> Result<(), Error> {
+    fn flash(&self, title: &str, message: &str) -> crate::Result<()> {
         let session = self.get_session();
 
         let mut messages: Vec<FlashMessage> = match session.get("flsh")? {
@@ -37,7 +36,7 @@ impl FlashMessages for HttpRequest {
         Ok(())
     }
 
-    fn get_flash_messages(&self) -> Result<Vec<FlashMessage>, Error> {
+    fn get_flash_messages(&self) -> crate::Result<Vec<FlashMessage>> {
         let session = self.get_session();
 
         let messages = match session.get("flsh")? {

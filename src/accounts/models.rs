@@ -6,7 +6,8 @@ use jelly::djangohashers::{make_password, check_password};
 use jelly::serde::{Deserialize, Serialize};
 use jelly::chrono::{DateTime, Utc};
 use jelly::error::Error;
-use jelly::sqlx::{self, postgres::PgPool, FromRow, types::Json};
+use jelly::sqlx;
+use jelly::sqlx::{postgres::PgPool, FromRow, types::Json};
 
 use super::forms::{LoginForm, NewAccountForm};
 

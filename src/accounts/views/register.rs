@@ -1,11 +1,11 @@
 use jelly::prelude::*;
-use jelly::actix_web::{HttpRequest, web::{Form}};
+use jelly::actix_web::{HttpRequest, web::Form};
 use jelly::request::{Authentication, DatabasePool};
 use jelly::Result;
 
 use crate::accounts::Account;
-use crate::accounts::jobs::{SendVerifyAccountEmail, SendAccountOddRegisterAttemptEmail};
-use crate::accounts::forms::{NewAccountForm};
+use crate::accounts::jobs::{send_verify_account_email, send_odd_registration_attempt_email};
+use crate::accounts::forms::NewAccountForm;
 
 pub async fn form(request: HttpRequest) -> Result<HttpResponse> {
     if request.is_authenticated()? {
@@ -44,16 +44,19 @@ pub async fn create_account(
     let db = request.db_pool()?;
     match Account::register(&form, db).await {
         Ok(uid) => {
-            request.queue(SendVerifyAccountEmail {
-                to: uid
-            })?;
+            send_verify_account_email.builder()
+                .set_json(&uid)?
+                .spawn(db)
+                .await?;
         },
 
         Err(e) => {
             error!("Error with registering: {:?}", e);
-            request.queue(SendAccountOddRegisterAttemptEmail {
-                to: form.email.value.clone()
-            })?;
+
+            send_odd_registration_attempt_email.builder()
+                .set_json(&form.email.value)?
+                .spawn(db)
+                .await?;
         }
     }
 

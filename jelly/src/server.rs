@@ -2,19 +2,16 @@ use std::sync::Arc;
 use std::env;
 
 use actix_web::{dev, middleware, web, App, HttpServer, HttpResponse};
-use background_jobs::{create_server, WorkerConfig};
-use background_jobs::memory_storage::Storage;
 use actix_web::web::ServiceConfig;
 use actix_session::CookieSession;
-use sqlx::postgres::{PgPoolOptions};
-
-use crate::jobs::{DEFAULT_QUEUE, JobState};
+use sqlx::postgres::PgPoolOptions;
+use sqlxmq::{JobRegistry, NamedJob};
 
 /// This struct provides a slightly simpler way to write `main.rs` in
 /// the root project, and forces more coupling to app-specific modules.
 pub struct Server {
     apps: Vec<Box<dyn Fn(&mut ServiceConfig) + Send + Sync + 'static>>,
-    jobs: Vec<Box<dyn Fn(WorkerConfig<JobState>) -> WorkerConfig<JobState> + Send + Sync + 'static>>
+    jobs: Vec<&'static NamedJob>
 }
 
 impl Server {
@@ -35,12 +32,13 @@ impl Server {
         self
     }
 
-    /// Registers jobs.
+    /// Builds up an internal list of Job types.
     pub fn register_jobs<F>(mut self, handler: F) -> Self
     where
-        F: Fn(WorkerConfig<JobState>) -> WorkerConfig<JobState> + Send + Sync + 'static
+        F: Fn() -> Vec<&'static NamedJob>
     {
-        self.jobs.push(Box::new(handler));
+        let mut jobs = handler();
+        self.jobs.append(&mut jobs);
         self
     }
 
@@ -65,8 +63,16 @@ impl Server {
         let pool = PgPoolOptions::new().connect(&db_uri).await
             .expect("Unable to connect to database!");
         
+        let registry = JobRegistry::new(&self.jobs);
+        let runner = registry.runner(&pool)
+            .set_concurrency(10, 20)
+            .run()
+            .await
+            .expect("Unable to start background job server!");
+
+        let job_engine = Arc::new(runner);
+
         let apps = Arc::new(self.apps);
-        let jobs = Arc::new(self.jobs);
 
         let server = HttpServer::new(move || {
             // !production needs no domain set, because browsers.
@@ -106,21 +112,12 @@ impl Server {
                 app = app.configure(|c| handler(c));
             }
             
-            let storage = Storage::new();
-            let queue = create_server(storage);
-            let state = JobState::new("JobState", pool.clone());
-            let mut worker_config = WorkerConfig::new(move || state.clone());
+            // This never needs to be retrieved, but we can't let it drop, so we throw it
+            // behind an Arc<T> and shove it here - when the server shuts down, all of these
+            // should be shut down, and then the runner itself should eventually just drop.
+            app = app.app_data(web::Data::new(job_engine.clone()));
 
-            for handler in jobs.iter() {
-                let x = handler.clone();
-                worker_config = x(worker_config);
-            }
-
-            worker_config
-                .set_worker_count(DEFAULT_QUEUE, 16)
-                .start(queue.clone());
-
-            app.app_data(web::Data::new(queue.clone()))
+            app
         })
         .backlog(8192)
         .shutdown_timeout(0)

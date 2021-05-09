@@ -35,5 +35,5 @@ pub async fn validate_token(
         }
     }
 
-    Err(Error::InvalidAccountToken)
+    Err(ErrorResponse::Other(Error::InvalidAccountToken))
 }

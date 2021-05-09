@@ -11,6 +11,7 @@ base64-url = "1.4.8"
 jelly = { path = "jelly" }
 log = "*"
 serde = { version = "1" }
+sqlx = { version = "0.5.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "chrono", "json"] }
 
 [features]
 default = ["jelly/template_watcher", "jelly/static"]

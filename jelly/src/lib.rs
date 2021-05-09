@@ -18,6 +18,7 @@ pub use futures;
 pub use serde;
 pub use serde_json;
 pub use sqlx;
+pub use sqlxmq;
 pub use tera;
 
 #[macro_use] pub extern crate log;
@@ -27,7 +28,6 @@ pub mod email;
 pub mod error;
 pub mod forms;
 pub mod guards;
-pub mod jobs;
 pub mod prelude;
 pub mod request;
 pub mod utils;
@@ -36,4 +36,5 @@ mod templates;
 mod server;
 pub use server::Server;
 
-pub type Result<T> = std::result::Result<T, crate::error::Error>;
+pub type Result<T> = std::result::Result<T, crate::error::ErrorResponse>;
+pub type JobResult<T> = std::result::Result<T, crate::error::Error>;
